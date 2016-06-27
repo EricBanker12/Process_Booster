@@ -4,4 +4,4 @@ Installation: Extract the .zip folder to your desired installation directory and
 
 Uninstallation: Delete the extracted folder and contents.
 
-Usage: With Process_Booster.exe running and the window of the desired process active, press the activation hotkey (by default Ctrl+Shift+F) to open a window to set process priority and affinity.
+Usage: With Process_Booster.exe running and the window of the desired process active, press the activation hotkey (by default Ctrl+Shift+F) to open a window to set process priority and affinity. If some functions are not working, please try running Process_Booster.exe as an administrator.
