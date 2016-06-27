@@ -1,4 +1,4 @@
-﻿#NoEnv  ; Recommended for performance and compatibility with future AutoHotkey releases.
+#NoEnv  ; Recommended for performance and compatibility with future AutoHotkey releases.
 ; #Warn  ; Enable warnings to assist with detecting common errors.
 SendMode Input  ; Recommended for new scripts due to its superior speed and reliability.
 SetWorkingDir %A_ScriptDir%  ; Ensures a consistent starting directory.
@@ -11,7 +11,20 @@ SetWorkingDir %A_ScriptDir%  ; Ensures a consistent starting directory.
 
 FileRead, Hotkey_Variable, Process_Booster_Config.txt
 Hotkey_Variable := StrReplace(Hotkey_Variable, "Hotkey=")
+Gui, Add, Text,, Press
+Gui, Add, Hotkey, vHotkey_Variable
+GuiControl,, Hotkey_Variable,  %Hotkey_Variable%
+Gui, Add, Text,, to open the Process_Booster window.
+Gui, Add, Button, gOkay, Okay
+Gui, Show
+return
+
+Okay:
+{
+Gui, Submit, NoHide
 Hotkey, %Hotkey_Variable%, Show_Window
+Gui, Destroy
+}
 return
 
 ;----------------------------------------------------------------------------------------------------
@@ -22,13 +35,17 @@ Show_Window:
 {
 	IfWinExist, ahk_exe Process_Booster.exe
 	{
-		;Do Nothing
+		WinActivate, ahk_exe Process_Booster.exe
 	}
 	else
 	{
+		WinGetTitle, This_Window, A
 		WinGet, This_Process, ProcessName, A
-		Process_Name := StrReplace(This_Process, ".exe")
+		WinGet, This_Process_PID, PID, A
+;		Process_Name := StrReplace(This_Process, ".exe")
 		Gui, Add, Text,, Process "%This_Process%" detected.
+		Gui, Add, Text,, Toggle Bordeless Fullscreen
+		Gui, Add, Button, gBorderless_Full_Screen, Toggle Borderless Fullscreen
 		Gui, Add, Text,, Process Priority
 		Gui, Add, DropDownList, vThis_Process_Priority, Realtime|High|AboveNormal|Normal|BelowNormal|Low
 		Current_Priority := GetPriority(This_Process)
@@ -57,8 +74,8 @@ Show_Window:
 			GuiControl, Choose, This_Process_Priority, 6
 		}
 		Gui, Add, Text,, Process Affinity
-		Gui, Add, Button, gEnable_All_Cores, Assign All Cores
-		Gui, Add, Button, x+10 gDisable_All_Cores, Assign No Cores
+		Gui, Add, Button, gEnable_All_Cores, Check All Cores
+		Gui, Add, Button, x+10 gDisable_All_Cores, Uncheck All Cores
 		EnvGet, Processor_Count, NUMBER_OF_PROCESSORS
 		This_Core := 0
 		loop, %Processor_Count%
@@ -66,7 +83,7 @@ Show_Window:
 			Gui, Add, Checkbox, x12 vEnable_Core%This_Core%, Core #%This_Core%
 			This_Core += 1
 		}
-		Affinity_Decimal := Get_Affinity(Process_Name)
+		Affinity_Decimal := Get_Affinity(This_Process)
 		This_Core := Processor_Count-1
 		loop, %Processor_Count%
 		{
@@ -86,41 +103,89 @@ Show_Window:
 return
 
 ;----------------------------------------------------------------------------------------------------
+; Exit Code
+;----------------------------------------------------------------------------------------------------
+
+GuiClose:
+{
+	Gui, Destroy
+}
+return
+
+;----------------------------------------------------------------------------------------------------
+; Toggle Window Borderless Fullscreen
+;----------------------------------------------------------------------------------------------------
+
+Borderless_Full_Screen:
+{
+	WinGet, window_style, Style, %This_Window%
+	If (window_style & 0xC00000)
+		{
+		WinSet, Style, -0xC00000, %This_Window%
+		WinSet, Style, -0x40000, %This_Window%
+		WinMove, %This_Window%, , 0, 0, %A_ScreenWidth%, %A_ScreenHeight% ;-2, -2, 1924, 1084
+		WinSet, Style, -0xC00000, %This_Window%
+		WinSet, Style, -0x40000, %This_Window%
+		}
+	else
+		{
+		WinSet, Style, +0xC00000, %This_Window%
+		WinSet, Style, +0x40000, %This_Window%
+		}
+}
+return
+
+;----------------------------------------------------------------------------------------------------
 ; Get Process Priority
-; Function made by SKAN https://autohotkey.com/board/topic/7984-ahk-functions-incache-cache-list-of-recent-items/://autohotkey.com/board/topic/7984-ahk-functions-incache-cache-list-of-recent-items/page-3?&#entry75675
+; Function made by SKAN: https://autohotkey.com/board/topic/7984-ahk-functions-incache-cache-list-of-recent-items/://autohotkey.com/board/topic/7984-ahk-functions-incache-cache-list-of-recent-items/page-3?&#entry75675
 ;----------------------------------------------------------------------------------------------------
 
 GetPriority(process="")
 {
-Process, Exist, %process%
-PID := ErrorLevel
-IfLessOrEqual, PID, 0, Return, "Error!"
-hProcess := DllCall("OpenProcess", Int,1024, Int,0, Int,PID)
-Priority := DllCall("GetPriorityClass", Int,hProcess)
-DllCall("CloseHandle", Int,hProcess)
-IfEqual, Priority, 64   , Return, "Low"
-IfEqual, Priority, 16384, Return, "BelowNormal"
-IfEqual, Priority, 32   , Return, "Normal"
-IfEqual, Priority, 32768, Return, "AboveNormal"
-IfEqual, Priority, 128  , Return, "High"
-IfEqual, Priority, 256  , Return, "Realtime"
-Return "" 
+	Process, Exist, %process%
+	PID := ErrorLevel
+	IfLessOrEqual, PID, 0, Return, "Error!"
+	hProcess := DllCall("OpenProcess", Int,1024, Int,0, Int,PID)
+	Priority := DllCall("GetPriorityClass", Int,hProcess)
+	DllCall("CloseHandle", Int,hProcess)
+	IfEqual, Priority, 64   , Return, "Low"
+	IfEqual, Priority, 16384, Return, "BelowNormal"
+	IfEqual, Priority, 32   , Return, "Normal"
+	IfEqual, Priority, 32768, Return, "AboveNormal"
+	IfEqual, Priority, 128  , Return, "High"
+	IfEqual, Priority, 256  , Return, "Realtime"
+	Return "" 
+}
+
+;----------------------------------------------------------------------------------------------------
+; Set Process Affinity
+;----------------------------------------------------------------------------------------------------
+
+Set_Affinity(process="", Affinity_Decimal=0)
+{
+	Process, Exist, %process%
+	PID := ErrorLevel
+	IfLessOrEqual, PID, 0, Return, "Error!"
+	IfLessOrEqual, Affinity_Decimal, 0, Return, "Error!"
+	hProcess := DllCall("OpenProcess", Int,1536, Int,0, Int,PID)
+	DllCall("SetProcessAffinityMask", Int,hProcess, Int,Affinity_Decimal)
+	DllCall("CloseHandle", Int,hProcess)
+	return
 }
 
 ;----------------------------------------------------------------------------------------------------
 ; Get Process Affinity
 ;----------------------------------------------------------------------------------------------------
 
-Get_Affinity(Process_Name)
+Get_Affinity(process="")
 {
-RunWait, cmd.exe /c cd %A_ScriptDir% & PowerShell "Get-Process %Process_Name% | Select-Object ProcessorAffinity" > Temp_Affinity.txt, C:\Windows\system32\, Hide
-FileRead, Affinity_Decimal, Temp_Affinity.txt
-FileDelete, Temp_Affinity.txt
-Affinity_Decimal := StrReplace(Affinity_Decimal, "-")
-Affinity_Decimal := StrReplace(Affinity_Decimal, "ProcessorAffinity")
-Affinity_Decimal := StrReplace(Affinity_Decimal, "`r`n")
-Affinity_Decimal := StrReplace(Affinity_Decimal, " ")
-return Affinity_Decimal
+	Process, Exist, %process%
+	PID := ErrorLevel
+	IfLessOrEqual, PID, 0, Return, "Error!"
+	hProcess := DllCall("OpenProcess", Int,1536, Int,0, Int,PID)
+	DllCall("GetProcessAffinityMask", Int,hProcess, IntP,PAM, IntP,SAM)
+	DllCall("CloseHandle", Int,hProcess)
+	return PAM
 }
 
 ;----------------------------------------------------------------------------------------------------
@@ -175,13 +240,13 @@ Apply:
 		}
 		This_Core -= 1
 	}
-	Run, cmd.exe /c PowerShell "$Process = Get-Process %Process_Name%; $Process.ProcessorAffinity=%Affinity_Decimal%", C:\Windows\system32\, Hide
+	Test := Set_Affinity(This_Process, Affinity_Decimal)
 	Gui, Destroy
 }
 return
 
 ;----------------------------------------------------------------------------------------------------
-; Close the Interface Window
+; Close the Active Interface Window
 ;----------------------------------------------------------------------------------------------------
 
 Cancel:
@@ -197,24 +262,28 @@ return
 Settings:
 {
 	Gui, New
-	Gui, Add, Text, , New Hotkey
+	Gui, Add, Text, , Set a new Hotkey?
 	Gui, Add, Hotkey, vNew_Hotkey_Variable
+	GuiControl,, New_Hotkey_Variable,  %Hotkey_Variable%
 	Gui, Add, Button, gApply_Settings, Apply
 	Gui, Add, Button, x+10 gCancel, Cancel
 	Gui, Show
 }
 return
 
+;----------------------------------------------------------------------------------------------------
+; Apply Changes and Close the Settings Interface Window
+;----------------------------------------------------------------------------------------------------
+
 Apply_Settings:
 {
 	Gui, Submit, NoHide
+	Hotkey, %Hotkey_Variable%,, Off
 	FileDelete, Process_Booster_Config.txt
 	FileAppend, Hotkey=%New_Hotkey_Variable%, Process_Booster_Config.txt
 	FileRead, Hotkey_Variable, Process_Booster_Config.txt
 	Hotkey_Variable := StrReplace(Hotkey_Variable, "Hotkey=")
-	Hotkey, %Hotkey_Variable%, Show_Window
+	Hotkey, %Hotkey_Variable%, Show_Window, On
 	Gui, Destroy
-	Gui, Destroy
-	Run, Process_Booster.exe
 }
 return
