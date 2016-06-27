@@ -12,19 +12,11 @@ SetWorkingDir %A_ScriptDir%  ; Ensures a consistent starting directory.
 FileRead, Hotkey_Variable, Process_Booster_Config.txt
 Hotkey_Variable := StrReplace(Hotkey_Variable, "Hotkey=")
 Gui, Add, Text,, Press
-Gui, Add, Hotkey, vHotkey_Variable
-GuiControl,, Hotkey_Variable,  %Hotkey_Variable%
-Gui, Add, Text,, to open the Process_Booster window.
-Gui, Add, Button, gOkay, Okay
+Gui, Add, Hotkey, x+10 y2 vNew_Hotkey_Variable
+GuiControl,, New_Hotkey_Variable,  %Hotkey_Variable%
+Gui, Add, Text, x12, to open the Process_Booster window.
+Gui, Add, Button, gApply_Settings, Okay
 Gui, Show
-return
-
-Okay:
-{
-Gui, Submit, NoHide
-Hotkey, %Hotkey_Variable%, Show_Window
-Gui, Destroy
-}
 return
 
 ;----------------------------------------------------------------------------------------------------
@@ -41,8 +33,6 @@ Show_Window:
 	{
 		WinGetTitle, This_Window, A
 		WinGet, This_Process, ProcessName, A
-		WinGet, This_Process_PID, PID, A
-;		Process_Name := StrReplace(This_Process, ".exe")
 		Gui, Add, Text,, Process "%This_Process%" detected.
 		Gui, Add, Text,, Toggle Bordeless Fullscreen
 		Gui, Add, Button, gBorderless_Full_Screen, Toggle Borderless Fullscreen
@@ -108,6 +98,15 @@ return
 
 GuiClose:
 {
+	Hotkey, %Hotkey_Variable%, Show_Window, UseErrorLevel
+	if ErrorLevel
+	{
+		;Do Nothing
+	}
+	else
+	{
+		Hotkey, %Hotkey_Variable%, Show_Window, On
+	}
 	Gui, Destroy
 }
 return
@@ -277,8 +276,16 @@ return
 
 Apply_Settings:
 {
-	Gui, Submit, NoHide
-	Hotkey, %Hotkey_Variable%,, Off
+	Hotkey, %Hotkey_Variable%, Show_Window, UseErrorLevel
+	if ErrorLevel
+	{
+		;Do Nothing
+	}
+	else
+	{
+		Hotkey, %Hotkey_Variable%,, Off
+	}
+	Gui, Submit
 	FileDelete, Process_Booster_Config.txt
 	FileAppend, Hotkey=%New_Hotkey_Variable%, Process_Booster_Config.txt
 	FileRead, Hotkey_Variable, Process_Booster_Config.txt
